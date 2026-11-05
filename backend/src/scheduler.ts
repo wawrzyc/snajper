@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { store } from "./store.js";
 import { getMyBid, placeBid } from "./allegro/client.js";
+import { now as adjustedNow } from "./allegro/clock.js";
 import type { Watch } from "./types.js";
 
 const TICK_MS = 250;
@@ -78,7 +79,7 @@ function scheduleFinalize(watch: Watch) {
 
   const delayMs = Math.max(
     0,
-    new Date(watch.endTime).getTime() + FINALIZE_DELAY_S * 1000 - Date.now(),
+    new Date(watch.endTime).getTime() + FINALIZE_DELAY_S * 1000 - adjustedNow(),
   );
 
   setTimeout(() => {
@@ -120,7 +121,7 @@ async function finalize(watchId: string) {
 }
 
 function tick() {
-  const now = Date.now();
+  const now = adjustedNow();
   const watches = store.get().watches.filter((w) => w.status === "scheduled");
 
   for (const watch of watches) {
@@ -132,11 +133,32 @@ function tick() {
   }
 }
 
+const CLOCK_SYNC_INTERVAL_MS = 2 * 60_000;
+
+/**
+ * Odświeża przesunięcie zegara (patrz allegro/clock.ts), odpytując Allegro
+ * o cokolwiek — interesuje nas tylko nagłówek Date odpowiedzi, nie wynik.
+ * Bez tego offset poznalibyśmy dopiero przy pierwszym prawdziwym strzale,
+ * czyli za późno.
+ */
+async function syncClock() {
+  const anyWatch = store.get().watches.find((w) => w.status === "scheduled");
+  const probeOfferId = anyWatch?.offerId ?? "0";
+  try {
+    await getMyBid(probeOfferId);
+  } catch {
+    // brak połączenia z Allegro — spróbujemy przy następnej okazji
+  }
+}
+
 let timer: NodeJS.Timeout | null = null;
+let clockTimer: NodeJS.Timeout | null = null;
 
 export function startScheduler() {
   if (timer) return;
   timer = setInterval(tick, TICK_MS);
+  clockTimer = setInterval(() => void syncClock(), CLOCK_SYNC_INTERVAL_MS);
+  void syncClock();
 
   // Po restarcie serwera doplanuj finalizację dla strzałów, które już padły.
   for (const watch of store.get().watches) {
@@ -149,5 +171,7 @@ export function startScheduler() {
 
 export function stopScheduler() {
   if (timer) clearInterval(timer);
+  if (clockTimer) clearInterval(clockTimer);
   timer = null;
+  clockTimer = null;
 }

@@ -5,6 +5,7 @@ import {
   pollDeviceAuthorization,
   startDeviceAuthorization,
 } from "../allegro/oauth.js";
+import { getClockInfo } from "../allegro/clock.js";
 export const allegroRouter = Router();
 
 let pending: { startedAt: number; done: boolean; error: string | null } | null = null;
@@ -15,6 +16,7 @@ allegroRouter.get("/status", (_req, res) => {
     connected: isConnected(),
     pending: pending && !pending.done ? true : false,
     error: pending?.error ?? null,
+    clock: getClockInfo(),
   });
 });
 

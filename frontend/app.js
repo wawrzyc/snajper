@@ -128,6 +128,18 @@ async function refreshAllegroStatus() {
     errorEl.textContent = "Błąd autoryzacji Allegro: " + status.error;
     errorEl.hidden = false;
   }
+
+  const clockEl = document.getElementById("clockInfo");
+  if (status.clock) {
+    if (!status.clock.lastSyncAt) {
+      clockEl.textContent = "Jeszcze nie zsynchronizowano (połącz się z Allegro, żeby sprawdzić).";
+    } else {
+      const offsetS = Math.round(status.clock.offsetMs / 1000);
+      const sign = offsetS >= 0 ? "+" : "";
+      const warn = Math.abs(offsetS) >= 3 ? " ⚠️ to dużo jak na snajpera — sprawdź zegar systemowy Windows." : " ✓ OK";
+      clockEl.textContent = `Przesunięcie: ${sign}${offsetS}s (ostatnia synchronizacja: ${fmtDate(status.clock.lastSyncAt)}).${warn}`;
+    }
+  }
   return status;
 }
 
@@ -285,7 +297,7 @@ function renderWatches(watches) {
       <div class="actions">
         <a href="${w.url}" target="_blank" rel="noopener"><button type="button">Zobacz</button></a>
         ${w.status === "scheduled" ? `<button type="button" data-id="${w.id}" data-action="edit">Edytuj</button>` : ""}
-        ${w.status === "scheduled" ? `<button type="button" class="btn-danger" data-id="${w.id}" data-action="delete">Usuń</button>` : ""}
+        <button type="button" class="btn-danger" data-id="${w.id}" data-action="delete">Usuń</button>
       </div>
     `;
     list.appendChild(li);

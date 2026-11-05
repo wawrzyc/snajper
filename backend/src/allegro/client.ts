@@ -1,5 +1,6 @@
 import { allegroApiBase, config } from "../config.js";
 import { getAllegroApp, getValidAccessToken } from "./oauth.js";
+import { recordServerDate } from "./clock.js";
 
 export interface MyBid {
   maxAmount: number;
@@ -17,7 +18,7 @@ export interface BidResult {
 async function allegroFetch(pathSuffix: string, init: RequestInit = {}) {
   const token = await getValidAccessToken();
   const { sandbox } = getAllegroApp();
-  return fetch(`${allegroApiBase(sandbox)}${pathSuffix}`, {
+  const res = await fetch(`${allegroApiBase(sandbox)}${pathSuffix}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -28,6 +29,8 @@ async function allegroFetch(pathSuffix: string, init: RequestInit = {}) {
       ...init.headers,
     },
   });
+  recordServerDate(res.headers.get("date"));
+  return res;
 }
 
 function parseMyBid(body: any): MyBid {
@@ -56,7 +59,7 @@ function explainBidError(status: number, code: string | undefined, raw: string):
     return "Nie znaleziono tej aukcji na Allegro (zły numer oferty albo aukcja usunięta).";
   }
   if (lower.includes("inactive") || lower.includes("ended") || lower.includes("zakończ")) {
-    return `Aukcja nie była już aktywna w momencie strzału — najpewniej zakończyła się wcześniej niż podany czas końca, albo została zakończona/anulowana przez sprzedającego. (surowy komunikat Allegro: „${raw}”)`;
+    return `Aukcja nie była już aktywna w momencie strzału. Najczęstsza przyczyna: rozjechany zegar serwera (sprawdź w Ustawieniach) albo podany czas końca był nieprawidłowy. (surowy komunikat Allegro: „${raw}”)`;
   }
   if (lower.includes("minimal") || lower.includes("too low") || lower.includes("amount")) {
     return `Allegro odrzuciło kwotę — ktoś mógł mieć już wyższą ofertę niż Twoje maksimum. (surowy komunikat Allegro: „${raw}”)`;
