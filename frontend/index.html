@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#121418" />
+  <title>Snajper</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/icons/icon.svg" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div id="app" class="app">
+    <header class="topbar">
+      <h1>🎯 Snajper</h1>
+    </header>
+
+    <section id="mainView" class="view" hidden>
+      <div id="allegroBanner" class="card banner" hidden>
+        <p id="allegroBannerText">Allegro nie jest połączone.</p>
+        <button id="connectAllegroBtn" hidden>Połącz z Allegro</button>
+        <div id="deviceCodeBox" hidden>
+          <p>Otwórz na dowolnym urządzeniu: <a id="deviceCodeLink" target="_blank" rel="noopener"></a></p>
+          <p>Kod: <strong id="deviceCodeValue"></strong></p>
+          <p class="muted">Czekam na autoryzację…</p>
+        </div>
+        <p id="allegroError" class="error" hidden></p>
+      </div>
+
+      <div class="card">
+        <h2>Ustawienia Allegro</h2>
+        <p class="muted">Dane aplikacji z <a href="https://apps.developer.allegro.pl" target="_blank" rel="noopener">apps.developer.allegro.pl</a>
+          (typ: „Aplikacja na urządzenie”). Zapisuje się od razu, bez restartu serwera.</p>
+        <form id="allegroAppForm" class="form-grid">
+          <label>Client ID
+            <input type="text" id="allegroClientId" autocomplete="off" required />
+          </label>
+          <label>Client Secret
+            <input type="password" id="allegroClientSecret" placeholder="zostaw puste, żeby nie zmieniać" autocomplete="off" />
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" id="allegroSandbox" />
+            Środowisko testowe (sandbox)
+          </label>
+          <button type="submit">Zapisz</button>
+        </form>
+        <p id="allegroAppStatus" class="muted" hidden></p>
+        <p id="allegroAppError" class="error" hidden></p>
+      </div>
+
+      <div class="card">
+        <h2>Dodawanie jednym kliknięciem</h2>
+        <p class="muted">Przeciągnij ten link na pasek zakładek w przeglądarce. Potem, gdy
+          jesteś na stronie aukcji Allegro, kliknij go — sam odczyta czas końca i cenę.</p>
+        <p><a id="bookmarkletLink" href="#">📌 Dodaj do Snajpera</a></p>
+      </div>
+
+      <div class="card">
+        <h2>Nowa licytacja (ręcznie)</h2>
+        <form id="addWatchForm" class="form-grid">
+          <label>Link do aukcji
+            <input type="text" id="watchUrl" placeholder="https://allegro.pl/oferta/..." required />
+          </label>
+          <label>Nazwa (opcjonalnie)
+            <input type="text" id="watchTitle" placeholder="np. Zegarek Omega" />
+          </label>
+          <label>Maksymalna kwota (PLN)
+            <input type="number" id="watchMaxAmount" min="1" step="0.01" required />
+          </label>
+          <label>Koniec aukcji
+            <input type="datetime-local" id="watchEndTime" required />
+          </label>
+          <label>Strzał przed końcem (s)
+            <input type="number" id="watchOffset" min="1" max="120" value="5" required />
+          </label>
+          <button type="submit">Dodaj</button>
+        </form>
+        <p id="addWatchError" class="error" hidden></p>
+      </div>
+
+      <div class="card">
+        <h2>Zaplanowane / aktywne</h2>
+        <ul id="watchList" class="list"></ul>
+      </div>
+
+      <div class="card">
+        <h2>Historia</h2>
+        <ul id="historyList" class="list"></ul>
+      </div>
+    </section>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

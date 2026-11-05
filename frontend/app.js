@@ -1,0 +1,279 @@
+const statusLabels = {
+  scheduled: "zaplanowana",
+  fired: "strzał padł",
+  won: "wygrana",
+  lost: "przegrana",
+  error: "błąd",
+  cancelled: "anulowana",
+};
+
+// Logowanie do panelu jest na razie wyłączone — zob. backend/src/index.ts.
+
+async function api(path, options = {}) {
+  const res = await fetch(`/api${path}`, {
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+  return body;
+}
+
+const mainView = document.getElementById("mainView");
+
+function showMain() {
+  mainView.hidden = false;
+  setupBookmarklet();
+  loadAllegroAppSettings();
+  refreshAll();
+}
+
+// --- Bookmarklet ---
+
+function buildBookmarklet(apiBase, token) {
+  var src = [
+    "(function(){",
+    "try {",
+    "var scripts = document.querySelectorAll('script[type=\"application/ld+json\"]');",
+    "var endTime = null, title = null, price = null;",
+    "for (var i = 0; i < scripts.length; i++) {",
+    "  try {",
+    "    var data = JSON.parse(scripts[i].textContent);",
+    "    var items = Array.isArray(data) ? data : [data];",
+    "    for (var j = 0; j < items.length; j++) {",
+    "      var it = items[j];",
+    "      var offers = it && it.offers;",
+    "      if (offers && offers.priceValidUntil) {",
+    "        endTime = offers.priceValidUntil;",
+    "        title = it.name || title;",
+    "        price = offers.price || price;",
+    "      }",
+    "    }",
+    "  } catch (e) {}",
+    "}",
+    "var m = location.href.match(/(\\d{6,})(?:[\\/?#]|$)/);",
+    "var offerId = m ? m[1] : null;",
+    "if (!endTime || !offerId) { alert('Snajper: nie znalazłem danych aukcji na tej stronie.'); return; }",
+    "var maxAmount = prompt('Dodaję: ' + (title || offerId) + '\\nKoniec: ' + endTime + '\\n\\nMaksymalna kwota (zł):', price || '');",
+    "if (!maxAmount) return;",
+    "fetch('" + apiBase + "/api/bookmarklet/add', {",
+    "  method: 'POST',",
+    "  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer " + token + "' },",
+    "  body: JSON.stringify({ url: location.href, title: title, endTime: endTime, maxAmount: Number(maxAmount) })",
+    "}).then(function(r){ return r.json(); }).then(function(data){",
+    "  alert(data.error ? ('Błąd: ' + data.error) : 'Dodano do Snajpera!');",
+    "}).catch(function(err){ alert('Błąd połączenia: ' + err.message); });",
+    "} catch (e) { alert('Błąd: ' + e.message); }",
+    "})();",
+  ].join("\n");
+  return "javascript:" + encodeURIComponent(src);
+}
+
+async function setupBookmarklet() {
+  try {
+    const { token } = await api("/settings/bookmarklet-token");
+    const link = document.getElementById("bookmarkletLink");
+    link.href = buildBookmarklet(window.location.origin, token);
+  } catch {
+    // panel i tak działa bez tego — bookmarklet to tylko wygoda
+  }
+}
+
+// --- Allegro connect ---
+
+async function refreshAllegroStatus() {
+  const status = await api("/allegro/status");
+  const banner = document.getElementById("allegroBanner");
+  const bannerText = document.getElementById("allegroBannerText");
+  const connectBtn = document.getElementById("connectAllegroBtn");
+
+  banner.hidden = status.connected;
+  if (!status.connected) {
+    if (!status.configured) {
+      bannerText.textContent = "Najpierw uzupełnij dane aplikacji Allegro w sekcji „Ustawienia Allegro” poniżej.";
+      connectBtn.hidden = true;
+    } else {
+      bannerText.textContent = "Allegro nie jest połączone.";
+      connectBtn.hidden = false;
+    }
+  }
+
+  if (status.pending) {
+    document.getElementById("deviceCodeBox").hidden = false;
+  } else if (!status.connected) {
+    document.getElementById("deviceCodeBox").hidden = true;
+  }
+  const errorEl = document.getElementById("allegroError");
+  if (status.error) {
+    errorEl.textContent = "Błąd autoryzacji Allegro: " + status.error;
+    errorEl.hidden = false;
+  }
+  return status;
+}
+
+async function loadAllegroAppSettings() {
+  try {
+    const app = await api("/settings/allegro-app");
+    document.getElementById("allegroClientId").value = app.clientId;
+    document.getElementById("allegroSandbox").checked = app.sandbox;
+  } catch {
+    // panel i tak działa, po prostu pokaże puste pola
+  }
+}
+
+document.getElementById("allegroAppForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const statusEl = document.getElementById("allegroAppStatus");
+  const errorEl = document.getElementById("allegroAppError");
+  statusEl.hidden = true;
+  errorEl.hidden = true;
+  const payload = {
+    clientId: document.getElementById("allegroClientId").value,
+    clientSecret: document.getElementById("allegroClientSecret").value,
+    sandbox: document.getElementById("allegroSandbox").checked,
+  };
+  try {
+    await api("/settings/allegro-app", { method: "POST", body: JSON.stringify(payload) });
+    document.getElementById("allegroClientSecret").value = "";
+    statusEl.textContent = "Zapisano. Kliknij „Połącz z Allegro” powyżej.";
+    statusEl.hidden = false;
+    refreshAllegroStatus();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.hidden = false;
+  }
+});
+
+document.getElementById("connectAllegroBtn").addEventListener("click", async () => {
+  const errorEl = document.getElementById("allegroError");
+  errorEl.hidden = true;
+  try {
+    const data = await api("/allegro/connect", { method: "POST" });
+    const box = document.getElementById("deviceCodeBox");
+    const link = document.getElementById("deviceCodeLink");
+    link.href = data.verificationUri;
+    link.textContent = data.verificationUri;
+    document.getElementById("deviceCodeValue").textContent = data.userCode;
+    box.hidden = false;
+  } catch (err) {
+    errorEl.textContent = "Błąd: " + err.message;
+    errorEl.hidden = false;
+  }
+});
+
+// --- Watches ---
+
+function fmtDate(iso) {
+  return new Date(iso).toLocaleString("pl-PL");
+}
+
+function renderWatches(watches) {
+  const list = document.getElementById("watchList");
+  list.innerHTML = "";
+  if (watches.length === 0) {
+    list.innerHTML = '<li class="muted">Brak zaplanowanych licytacji.</li>';
+    return;
+  }
+  for (const w of watches) {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <div class="row">
+        <span class="title">${escapeHtml(w.title)}</span>
+        <span class="status status-${w.status}">${statusLabels[w.status] ?? w.status}</span>
+      </div>
+      <div class="meta">Max: ${w.maxAmount.toFixed(2)} zł · koniec: ${fmtDate(w.endTime)} · strzał ${w.snipeOffsetSeconds}s przed</div>
+      ${w.lastError ? `<div class="error">${escapeHtml(w.lastError)}</div>` : ""}
+      <div class="actions">
+        <a href="${w.url}" target="_blank" rel="noopener"><button type="button">Zobacz</button></a>
+        ${w.status === "scheduled" ? `<button type="button" class="btn-danger" data-id="${w.id}" data-action="delete">Usuń</button>` : ""}
+      </div>
+    `;
+    list.appendChild(li);
+  }
+  list.querySelectorAll('[data-action="delete"]').forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      await api(`/watches/${btn.dataset.id}`, { method: "DELETE" });
+      refreshWatches();
+    });
+  });
+}
+
+function renderHistory(history) {
+  const list = document.getElementById("historyList");
+  list.innerHTML = "";
+  if (history.length === 0) {
+    list.innerHTML = '<li class="muted">Brak historii.</li>';
+    return;
+  }
+  for (const h of history.slice(0, 30)) {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <div class="row">
+        <span class="title">${escapeHtml(h.title)}</span>
+        <span class="status status-${h.status}">${statusLabels[h.status] ?? h.status}</span>
+      </div>
+      <div class="meta">${fmtDate(h.createdAt)} ${h.amount != null ? `· ${h.amount.toFixed(2)} zł` : ""}</div>
+      <div class="meta">${escapeHtml(h.message)}</div>
+    `;
+    list.appendChild(li);
+  }
+}
+
+async function refreshWatches() {
+  const watches = await api("/watches");
+  renderWatches(watches);
+}
+
+async function refreshHistory() {
+  const history = await api("/watches/history");
+  renderHistory(history);
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str ?? "";
+  return div.innerHTML;
+}
+
+document.getElementById("addWatchForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById("addWatchError");
+  errorEl.hidden = true;
+  const payload = {
+    url: document.getElementById("watchUrl").value,
+    title: document.getElementById("watchTitle").value,
+    maxAmount: Number(document.getElementById("watchMaxAmount").value),
+    endTime: new Date(document.getElementById("watchEndTime").value).toISOString(),
+    snipeOffsetSeconds: Number(document.getElementById("watchOffset").value),
+  };
+  try {
+    await api("/watches", { method: "POST", body: JSON.stringify(payload) });
+    e.target.reset();
+    document.getElementById("watchOffset").value = 5;
+    refreshWatches();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.hidden = false;
+  }
+});
+
+async function refreshAll() {
+  try {
+    await refreshAllegroStatus();
+    await refreshWatches();
+    await refreshHistory();
+  } catch {
+    // spróbujemy ponownie przy kolejnym ticku
+  }
+}
+
+setInterval(refreshAll, 5000);
+
+// --- Start ---
+
+showMain();
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
