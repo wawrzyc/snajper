@@ -38,6 +38,18 @@ function getWatch(id: string): Watch | undefined {
   return store.get().watches.find((w) => w.id === id);
 }
 
+/**
+ * Zapisuje ostateczny wynik w historii i usuwa wpis z listy "Zaplanowane /
+ * aktywne" — skoro się zakończył (wygrana/przegrana/błąd), nie jest już
+ * aktywny, a pełny zapis i tak zostaje w historii.
+ */
+function resolveWatch(watch: Watch, status: Watch["status"], amount: number | null, message: string) {
+  addHistory(watch, status, amount, message);
+  store.update((draft) => {
+    draft.watches = draft.watches.filter((w) => w.id !== watch.id);
+  });
+}
+
 const RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 1500;
 
@@ -58,8 +70,7 @@ async function fireSnipe(watch: Watch) {
 
   if (!result.success) {
     const message = `${result.message} (próbowano ${attempt}×)`;
-    updateWatch(watch.id, { status: "error", lastError: message });
-    addHistory(watch, "error", null, message);
+    resolveWatch(watch, "error", null, message);
     return;
   }
 
@@ -94,14 +105,12 @@ async function finalize(watchId: string) {
   const bid = await getMyBid(watch.offerId);
 
   if (!bid) {
-    updateWatch(watch.id, { status: "error", lastError: "Nie udało się potwierdzić wyniku licytacji" });
-    addHistory(watch, "error", null, "Nie udało się odczytać ostatecznego wyniku z Allegro");
+    resolveWatch(watch, "error", null, "Nie udało się odczytać ostatecznego wyniku z Allegro");
     return;
   }
 
   if (bid.highBidder && !bid.minimalPriceMet) {
-    updateWatch(watch.id, { status: "lost", currentPrice: bid.currentPrice, highBidder: bid.highBidder });
-    addHistory(
+    resolveWatch(
       watch,
       "lost",
       bid.currentPrice,
@@ -111,13 +120,7 @@ async function finalize(watchId: string) {
   }
 
   const status: Watch["status"] = bid.highBidder ? "won" : "lost";
-  updateWatch(watch.id, { status, currentPrice: bid.currentPrice, highBidder: bid.highBidder });
-  addHistory(
-    watch,
-    status,
-    bid.currentPrice,
-    status === "won" ? "Wygrana licytacja" : "Przegrana licytacja",
-  );
+  resolveWatch(watch, status, bid.currentPrice, status === "won" ? "Wygrana licytacja" : "Przegrana licytacja");
 }
 
 function tick() {
@@ -160,11 +163,12 @@ export function startScheduler() {
   clockTimer = setInterval(() => void syncClock(), CLOCK_SYNC_INTERVAL_MS);
   void syncClock();
 
-  // Po restarcie serwera doplanuj finalizację dla strzałów, które już padły.
+  // Po restarcie serwera doplanuj finalizację dla strzałów, które już padły
+  // (wygrana/przegrana/błąd są od razu usuwane z listy, więc tu zostają tylko "fired").
   for (const watch of store.get().watches) {
-    if (watch.status === "fired" || watch.status === "won" || watch.status === "lost") {
+    if (watch.status === "fired") {
       fired.add(watch.id);
-      if (watch.status === "fired") scheduleFinalize(watch);
+      scheduleFinalize(watch);
     }
   }
 }
