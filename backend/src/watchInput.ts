@@ -8,10 +8,11 @@ export interface NewWatchInput {
   maxAmount?: unknown;
   snipeOffsetSeconds?: unknown;
   endTime?: unknown;
+  knownPrice?: unknown;
 }
 
 export function buildWatch(input: NewWatchInput): { watch: Watch } | { error: string } {
-  const { url, title, maxAmount, snipeOffsetSeconds, endTime } = input;
+  const { url, title, maxAmount, snipeOffsetSeconds, endTime, knownPrice } = input;
 
   const offerId = typeof url === "string" ? extractOfferId(url) : null;
   if (!offerId) {
@@ -23,12 +24,19 @@ export function buildWatch(input: NewWatchInput): { watch: Watch } | { error: st
     return { error: "Nieprawidłowa maksymalna kwota" };
   }
 
+  const price = knownPrice !== undefined && knownPrice !== null && knownPrice !== "" ? Number(knownPrice) : null;
+  if (price !== null && Number.isFinite(price) && max <= price) {
+    return {
+      error: `Maksymalna kwota (${max.toFixed(2)} zł) musi być wyższa niż aktualna cena (${price.toFixed(2)} zł) — inaczej oferta na pewno przegra.`,
+    };
+  }
+
   const end = new Date(String(endTime));
   if (Number.isNaN(end.getTime()) || end.getTime() <= Date.now()) {
     return { error: "Podaj prawidłową datę/godzinę zakończenia aukcji, w przyszłości" };
   }
 
-  const offset = Number(snipeOffsetSeconds ?? 5);
+  const offset = Number(snipeOffsetSeconds ?? 7);
   if (!Number.isFinite(offset) || offset < 1) {
     return { error: "Nieprawidłowe wyprzedzenie strzału (w sekundach)" };
   }
@@ -43,7 +51,7 @@ export function buildWatch(input: NewWatchInput): { watch: Watch } | { error: st
       maxAmount: max,
       snipeOffsetSeconds: offset,
       endTime: end.toISOString(),
-      currentPrice: null,
+      currentPrice: price !== null && Number.isFinite(price) ? price : null,
       highBidder: null,
       status: "scheduled",
       lastError: null,

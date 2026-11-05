@@ -55,12 +55,12 @@ function buildBookmarklet(apiBase, token) {
     "var offerId = m ? m[1] : null;",
     "if (title) { title = title.replace(/\\\\u([0-9a-fA-F]{4})/g, function(_, h){ return String.fromCharCode(parseInt(h,16)); }); }",
     "if (!endTime || !offerId) { alert('Snajper: nie znalazłem danych aukcji na tej stronie.'); return; }",
-    "var maxAmount = prompt('Dodaję: ' + (title || offerId) + '\\nKoniec: ' + endTime + '\\n\\nMaksymalna kwota (zł):', price || '');",
+    "var maxAmount = prompt('Dodaję: ' + (title || offerId) + '\\nKoniec: ' + endTime + '\\nAktualna cena: ' + (price || '?') + ' zł\\n\\nMaksymalna kwota (zł, musi być WYŻSZA niż aktualna cena):', price || '');",
     "if (!maxAmount) return;",
     "fetch('" + apiBase + "/api/bookmarklet/add', {",
     "  method: 'POST',",
     "  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer " + token + "' },",
-    "  body: JSON.stringify({ url: location.href, title: title, endTime: endTime, maxAmount: Number(maxAmount) })",
+    "  body: JSON.stringify({ url: location.href, title: title, endTime: endTime, maxAmount: Number(maxAmount), knownPrice: price ? Number(price) : null })",
     "}).then(function(r){ return r.json(); }).then(function(data){",
     "  alert(data.error ? ('Błąd: ' + data.error) : 'Dodano do Snajpera!');",
     "}).catch(function(err){ alert('Błąd połączenia: ' + err.message); });",
@@ -226,6 +226,7 @@ function startEditWatch(watch) {
   document.getElementById("watchUrl").value = watch.url;
   document.getElementById("watchTitle").value = watch.title;
   document.getElementById("watchMaxAmount").value = watch.maxAmount;
+  document.getElementById("watchKnownPrice").value = watch.currentPrice ?? "";
   document.getElementById("watchEndTime").value = toDatetimeLocalValue(watch.endTime);
   document.getElementById("watchOffset").value = watch.snipeOffsetSeconds;
   document.getElementById("addWatchHeading").textContent = "Edytujesz licytację";
@@ -358,10 +359,12 @@ document.getElementById("addWatchForm").addEventListener("submit", async (e) => 
   e.preventDefault();
   const errorEl = document.getElementById("addWatchError");
   errorEl.hidden = true;
+  const knownPriceRaw = document.getElementById("watchKnownPrice").value;
   const payload = {
     url: document.getElementById("watchUrl").value,
     title: document.getElementById("watchTitle").value,
     maxAmount: Number(document.getElementById("watchMaxAmount").value),
+    knownPrice: knownPriceRaw ? Number(knownPriceRaw) : null,
     endTime: new Date(document.getElementById("watchEndTime").value).toISOString(),
     snipeOffsetSeconds: Number(document.getElementById("watchOffset").value),
   };
