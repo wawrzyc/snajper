@@ -215,40 +215,46 @@ document.getElementById("connectAllegroBtn").addEventListener("click", async () 
 let lastWatches = [];
 let editingWatchId = null;
 
-function toDatetimeLocalValue(iso) {
-  const d = new Date(iso);
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-const LOCKED_WHEN_EDITING = ["watchUrl", "watchTitle", "watchKnownPrice", "watchEndTime"];
+const editWatchModal = document.getElementById("editWatchModal");
 
 function startEditWatch(watch) {
   editingWatchId = watch.id;
-  document.getElementById("watchUrl").value = watch.url;
-  document.getElementById("watchTitle").value = watch.title;
-  document.getElementById("watchMaxAmount").value = watch.maxAmount;
-  document.getElementById("watchKnownPrice").value = watch.currentPrice ?? "";
-  document.getElementById("watchEndTime").value = toDatetimeLocalValue(watch.endTime);
-  document.getElementById("watchOffset").value = watch.snipeOffsetSeconds;
-  document.getElementById("addWatchHeading").textContent = "Edytujesz licytację";
-  document.getElementById("addWatchSubmitBtn").textContent = "Zapisz zmiany";
-  document.getElementById("cancelEditBtn").hidden = false;
-  LOCKED_WHEN_EDITING.forEach((id) => { document.getElementById(id).disabled = true; });
-  document.getElementById("watchMaxAmount").scrollIntoView({ behavior: "smooth", block: "center" });
+  document.getElementById("editWatchInfo").innerHTML =
+    `<strong>${escapeHtml(watch.title)}</strong><br>Koniec aukcji: ${fmtDate(watch.endTime)}` +
+    (watch.currentPrice != null ? `<br>Ostatnia znana cena: ${watch.currentPrice.toFixed(2)} zł` : "");
+  document.getElementById("editMaxAmount").value = watch.maxAmount;
+  document.getElementById("editOffset").value = watch.snipeOffsetSeconds;
+  document.getElementById("editWatchError").hidden = true;
+  editWatchModal.hidden = false;
 }
 
 function stopEditWatch() {
   editingWatchId = null;
-  LOCKED_WHEN_EDITING.forEach((id) => { document.getElementById(id).disabled = false; });
-  document.getElementById("addWatchForm").reset();
-  document.getElementById("watchOffset").value = 7;
-  document.getElementById("addWatchHeading").textContent = "Nowa licytacja (ręcznie)";
-  document.getElementById("addWatchSubmitBtn").textContent = "Dodaj";
-  document.getElementById("cancelEditBtn").hidden = true;
+  editWatchModal.hidden = true;
 }
 
-document.getElementById("cancelEditBtn").addEventListener("click", stopEditWatch);
+document.getElementById("closeEditBtn").addEventListener("click", stopEditWatch);
+editWatchModal.addEventListener("click", (e) => {
+  if (e.target === editWatchModal) stopEditWatch();
+});
+
+document.getElementById("editWatchForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById("editWatchError");
+  errorEl.hidden = true;
+  const payload = {
+    maxAmount: Number(document.getElementById("editMaxAmount").value),
+    snipeOffsetSeconds: Number(document.getElementById("editOffset").value),
+  };
+  try {
+    await api(`/watches/${editingWatchId}`, { method: "PATCH", body: JSON.stringify(payload) });
+    stopEditWatch();
+    refreshWatches();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.hidden = false;
+  }
+});
 
 function fmtDate(iso) {
   return new Date(iso).toLocaleString("pl-PL");
@@ -363,24 +369,17 @@ document.getElementById("addWatchForm").addEventListener("submit", async (e) => 
   e.preventDefault();
   const errorEl = document.getElementById("addWatchError");
   errorEl.hidden = true;
-  const knownPriceRaw = document.getElementById("watchKnownPrice").value;
   const payload = {
     url: document.getElementById("watchUrl").value,
     title: document.getElementById("watchTitle").value,
     maxAmount: Number(document.getElementById("watchMaxAmount").value),
-    knownPrice: knownPriceRaw ? Number(knownPriceRaw) : null,
     endTime: new Date(document.getElementById("watchEndTime").value).toISOString(),
     snipeOffsetSeconds: Number(document.getElementById("watchOffset").value),
   };
   try {
-    if (editingWatchId) {
-      await api(`/watches/${editingWatchId}`, { method: "PATCH", body: JSON.stringify(payload) });
-      stopEditWatch();
-    } else {
-      await api("/watches", { method: "POST", body: JSON.stringify(payload) });
-      e.target.reset();
-      document.getElementById("watchOffset").value = 7;
-    }
+    await api("/watches", { method: "POST", body: JSON.stringify(payload) });
+    e.target.reset();
+    document.getElementById("watchOffset").value = 7;
     refreshWatches();
   } catch (err) {
     errorEl.textContent = err.message;
