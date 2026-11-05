@@ -203,6 +203,29 @@ function fmtDate(iso) {
   return new Date(iso).toLocaleString("pl-PL");
 }
 
+function formatCountdown(ms) {
+  if (ms <= 0) return "zakończona";
+  const s = Math.floor(ms / 1000);
+  const days = Math.floor(s / 86400);
+  const hours = Math.floor((s % 86400) / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  const seconds = s % 60;
+  if (days >= 1) return `${days} dni i ${hours} godz.`;
+  if (hours >= 1) return `${hours} godz. i ${minutes} min.`;
+  if (minutes >= 1) return `${minutes} min. i ${seconds} s.`;
+  return `${seconds} s.`;
+}
+
+function updateCountdowns() {
+  document.querySelectorAll(".countdown[data-end]").forEach((el) => {
+    const remaining = new Date(el.dataset.end).getTime() - Date.now();
+    el.textContent = formatCountdown(remaining);
+    el.classList.toggle("countdown-urgent", remaining > 0 && remaining < 5 * 60_000);
+  });
+}
+
+setInterval(updateCountdowns, 1000);
+
 function renderWatches(watches) {
   const list = document.getElementById("watchList");
   list.innerHTML = "";
@@ -212,12 +235,17 @@ function renderWatches(watches) {
   }
   for (const w of watches) {
     const li = document.createElement("li");
+    const timeInfo =
+      w.status === "scheduled"
+        ? `do końca: <span class="countdown" data-end="${w.endTime}"></span> (${fmtDate(w.endTime)})`
+        : `koniec: ${fmtDate(w.endTime)}`;
     li.innerHTML = `
       <div class="row">
         <span class="title">${escapeHtml(w.title)}</span>
         <span class="status status-${w.status}">${statusLabels[w.status] ?? w.status}</span>
       </div>
-      <div class="meta">Max: ${w.maxAmount.toFixed(2)} zł · koniec: ${fmtDate(w.endTime)} · strzał ${w.snipeOffsetSeconds}s przed</div>
+      <div class="meta">Max: ${w.maxAmount.toFixed(2)} zł · ${timeInfo} · strzał ${w.snipeOffsetSeconds}s przed</div>
+      ${w.currentPrice != null ? `<div class="meta">Ostatnia znana cena: ${w.currentPrice.toFixed(2)} zł</div>` : ""}
       ${w.lastError ? `<div class="error">${escapeHtml(w.lastError)}</div>` : ""}
       <div class="actions">
         <a href="${w.url}" target="_blank" rel="noopener"><button type="button">Zobacz</button></a>
@@ -232,6 +260,7 @@ function renderWatches(watches) {
       refreshWatches();
     });
   });
+  updateCountdowns();
 }
 
 function renderHistory(history) {

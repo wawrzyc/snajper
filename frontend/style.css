@@ -111,6 +111,8 @@ label.checkbox-row input { width: auto; }
 .status-lost { background: #3b2525; color: var(--lost); }
 .status-error { background: #3b2525; color: var(--error); }
 .list .meta { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+.countdown { font-weight: 600; color: var(--text); }
+.countdown-urgent { color: var(--accent); }
 .list .actions { margin-top: 8px; display: flex; gap: 8px; }
 .list .actions button { width: auto; margin-top: 0; padding: 6px 10px; font-size: 0.85rem; }
 .btn-danger { background: var(--error); color: #1a1a1a; }

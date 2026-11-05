@@ -5,7 +5,6 @@ import {
   pollDeviceAuthorization,
   startDeviceAuthorization,
 } from "../allegro/oauth.js";
-
 export const allegroRouter = Router();
 
 let pending: { startedAt: number; done: boolean; error: string | null } | null = null;
