@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { store } from "../store.js";
 import { buildWatch } from "../watchInput.js";
+import { extractOfferId } from "../util/allegroUrl.js";
 
 export const watchesRouter = Router();
 
@@ -27,12 +28,34 @@ watchesRouter.post("/", (req, res) => {
 });
 
 watchesRouter.patch("/:id", (req, res) => {
-  const { maxAmount, snipeOffsetSeconds, endTime, title } = req.body ?? {};
+  const { url, maxAmount, snipeOffsetSeconds, endTime, title } = req.body ?? {};
+
+  if (url !== undefined && !extractOfferId(String(url))) {
+    res.status(400).json({ error: "Nie rozpoznano ID oferty w podanym linku" });
+    return;
+  }
+  if (endTime !== undefined && Number.isNaN(new Date(endTime).getTime())) {
+    res.status(400).json({ error: "Nieprawidłowa data/godzina zakończenia aukcji" });
+    return;
+  }
+
   let updated = false;
+  let notFoundReason: string | null = null;
 
   store.update((draft) => {
     const watch = draft.watches.find((w) => w.id === req.params.id);
-    if (!watch || watch.status !== "scheduled") return;
+    if (!watch) {
+      notFoundReason = "Nie znaleziono licytacji";
+      return;
+    }
+    if (watch.status !== "scheduled") {
+      notFoundReason = "Nie można już edytować — strzał już padł";
+      return;
+    }
+    if (url !== undefined) {
+      watch.url = String(url);
+      watch.offerId = extractOfferId(String(url))!;
+    }
     if (maxAmount !== undefined) watch.maxAmount = Number(maxAmount);
     if (snipeOffsetSeconds !== undefined) watch.snipeOffsetSeconds = Number(snipeOffsetSeconds);
     if (endTime !== undefined) watch.endTime = new Date(endTime).toISOString();
@@ -42,7 +65,7 @@ watchesRouter.patch("/:id", (req, res) => {
   });
 
   if (!updated) {
-    res.status(404).json({ error: "Nie znaleziono lub nie można już edytować (strzał padł)" });
+    res.status(404).json({ error: notFoundReason ?? "Nie znaleziono" });
     return;
   }
   res.json(store.get().watches.find((w) => w.id === req.params.id));

@@ -3,7 +3,7 @@ const statusLabels = {
   fired: "strzał padł",
   won: "wygrana",
   lost: "przegrana",
-  error: "błąd",
+  error: "błąd — nie złożono oferty",
   cancelled: "anulowana",
 };
 
@@ -53,6 +53,7 @@ function buildBookmarklet(apiBase, token) {
     "}",
     "var m = location.href.match(/(\\d{6,})(?:[\\/?#]|$)/);",
     "var offerId = m ? m[1] : null;",
+    "if (title) { title = title.replace(/\\\\u([0-9a-fA-F]{4})/g, function(_, h){ return String.fromCharCode(parseInt(h,16)); }); }",
     "if (!endTime || !offerId) { alert('Snajper: nie znalazłem danych aukcji na tej stronie.'); return; }",
     "var maxAmount = prompt('Dodaję: ' + (title || offerId) + '\\nKoniec: ' + endTime + '\\n\\nMaksymalna kwota (zł):', price || '');",
     "if (!maxAmount) return;",
@@ -199,6 +200,39 @@ document.getElementById("connectAllegroBtn").addEventListener("click", async () 
 
 // --- Watches ---
 
+let lastWatches = [];
+let editingWatchId = null;
+
+function toDatetimeLocalValue(iso) {
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function startEditWatch(watch) {
+  editingWatchId = watch.id;
+  document.getElementById("watchUrl").value = watch.url;
+  document.getElementById("watchTitle").value = watch.title;
+  document.getElementById("watchMaxAmount").value = watch.maxAmount;
+  document.getElementById("watchEndTime").value = toDatetimeLocalValue(watch.endTime);
+  document.getElementById("watchOffset").value = watch.snipeOffsetSeconds;
+  document.getElementById("addWatchHeading").textContent = "Edytujesz licytację";
+  document.getElementById("addWatchSubmitBtn").textContent = "Zapisz zmiany";
+  document.getElementById("cancelEditBtn").hidden = false;
+  document.getElementById("watchUrl").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function stopEditWatch() {
+  editingWatchId = null;
+  document.getElementById("addWatchForm").reset();
+  document.getElementById("watchOffset").value = 7;
+  document.getElementById("addWatchHeading").textContent = "Nowa licytacja (ręcznie)";
+  document.getElementById("addWatchSubmitBtn").textContent = "Dodaj";
+  document.getElementById("cancelEditBtn").hidden = true;
+}
+
+document.getElementById("cancelEditBtn").addEventListener("click", stopEditWatch);
+
 function fmtDate(iso) {
   return new Date(iso).toLocaleString("pl-PL");
 }
@@ -229,6 +263,7 @@ setInterval(updateCountdowns, 1000);
 function renderWatches(watches) {
   const list = document.getElementById("watchList");
   list.innerHTML = "";
+  lastWatches = watches;
   if (watches.length === 0) {
     list.innerHTML = '<li class="muted">Brak zaplanowanych licytacji.</li>';
     return;
@@ -249,11 +284,18 @@ function renderWatches(watches) {
       ${w.lastError ? `<div class="error">${escapeHtml(w.lastError)}</div>` : ""}
       <div class="actions">
         <a href="${w.url}" target="_blank" rel="noopener"><button type="button">Zobacz</button></a>
+        ${w.status === "scheduled" ? `<button type="button" data-id="${w.id}" data-action="edit">Edytuj</button>` : ""}
         ${w.status === "scheduled" ? `<button type="button" class="btn-danger" data-id="${w.id}" data-action="delete">Usuń</button>` : ""}
       </div>
     `;
     list.appendChild(li);
   }
+  list.querySelectorAll('[data-action="edit"]').forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const watch = lastWatches.find((w) => w.id === btn.dataset.id);
+      if (watch) startEditWatch(watch);
+    });
+  });
   list.querySelectorAll('[data-action="delete"]').forEach((btn) => {
     btn.addEventListener("click", async () => {
       await api(`/watches/${btn.dataset.id}`, { method: "DELETE" });
@@ -312,9 +354,14 @@ document.getElementById("addWatchForm").addEventListener("submit", async (e) => 
     snipeOffsetSeconds: Number(document.getElementById("watchOffset").value),
   };
   try {
-    await api("/watches", { method: "POST", body: JSON.stringify(payload) });
-    e.target.reset();
-    document.getElementById("watchOffset").value = 5;
+    if (editingWatchId) {
+      await api(`/watches/${editingWatchId}`, { method: "PATCH", body: JSON.stringify(payload) });
+      stopEditWatch();
+    } else {
+      await api("/watches", { method: "POST", body: JSON.stringify(payload) });
+      e.target.reset();
+      document.getElementById("watchOffset").value = 7;
+    }
     refreshWatches();
   } catch (err) {
     errorEl.textContent = err.message;

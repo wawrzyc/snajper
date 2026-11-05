@@ -37,15 +37,28 @@ function getWatch(id: string): Watch | undefined {
   return store.get().watches.find((w) => w.id === id);
 }
 
+const RETRY_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 1500;
+
 async function fireSnipe(watch: Watch) {
   fired.add(watch.id);
   updateWatch(watch.id, { status: "fired" });
 
-  const result = await placeBid(watch.offerId, watch.maxAmount);
+  let result = await placeBid(watch.offerId, watch.maxAmount);
+  let attempt = 1;
+
+  // Niektóre błędy mogą być chwilowe (np. przeciążenie Allegro w ostatnich
+  // sekundach licytacji z wieloma rywalami) — próbujemy ponownie zanim się poddamy.
+  while (!result.success && attempt < RETRY_ATTEMPTS) {
+    await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+    attempt += 1;
+    result = await placeBid(watch.offerId, watch.maxAmount);
+  }
 
   if (!result.success) {
-    updateWatch(watch.id, { status: "error", lastError: result.message });
-    addHistory(watch, "error", null, result.message);
+    const message = `${result.message} (próbowano ${attempt}×)`;
+    updateWatch(watch.id, { status: "error", lastError: message });
+    addHistory(watch, "error", null, message);
     return;
   }
 

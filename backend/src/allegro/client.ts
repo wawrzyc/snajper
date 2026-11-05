@@ -24,6 +24,7 @@ async function allegroFetch(pathSuffix: string, init: RequestInit = {}) {
       Accept: "application/vnd.allegro.public.v1+json",
       "Content-Type": "application/vnd.allegro.public.v1+json",
       "User-Agent": config.allegroUserAgent,
+      "Accept-Language": "pl-PL",
       ...init.headers,
     },
   });
@@ -48,6 +49,24 @@ export async function getMyBid(offerId: string): Promise<MyBid | null> {
   return body ? parseMyBid(body) : null;
 }
 
+/** Tłumaczy/uściśla najczęstsze komunikaty błędów Allegro na zrozumiałe wyjaśnienie po polsku. */
+function explainBidError(status: number, code: string | undefined, raw: string): string {
+  const lower = raw.toLowerCase();
+  if (status === 404 || lower.includes("auction not found")) {
+    return "Nie znaleziono tej aukcji na Allegro (zły numer oferty albo aukcja usunięta).";
+  }
+  if (lower.includes("inactive") || lower.includes("ended") || lower.includes("zakończ")) {
+    return `Aukcja nie była już aktywna w momencie strzału — najpewniej zakończyła się wcześniej niż podany czas końca, albo została zakończona/anulowana przez sprzedającego. (surowy komunikat Allegro: „${raw}”)`;
+  }
+  if (lower.includes("minimal") || lower.includes("too low") || lower.includes("amount")) {
+    return `Allegro odrzuciło kwotę — ktoś mógł mieć już wyższą ofertę niż Twoje maksimum. (surowy komunikat Allegro: „${raw}”)`;
+  }
+  if (status === 401 || status === 403) {
+    return "Brak autoryzacji do złożenia oferty — połączenie z Allegro mogło wygasnąć, spróbuj połączyć się ponownie w Ustawieniach.";
+  }
+  return `${raw}${code ? ` (kod: ${code})` : ""}`;
+}
+
 export async function placeBid(offerId: string, maxAmount: number): Promise<BidResult> {
   const res = await allegroFetch(`/bidding/offers/${offerId}/bid`, {
     method: "PUT",
@@ -59,10 +78,12 @@ export async function placeBid(offerId: string, maxAmount: number): Promise<BidR
   const body = (await res.json().catch(() => null)) as any;
 
   if (!res.ok) {
-    const message =
+    const rawMessage =
       body?.errors?.[0]?.userMessage ??
       body?.errors?.[0]?.message ??
       `HTTP ${res.status}`;
+    const code = body?.errors?.[0]?.code;
+    const message = `Oferta NIE została złożona. ${explainBidError(res.status, code, rawMessage)}`;
     return { success: false, bid: null, message };
   }
 
