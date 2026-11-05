@@ -20,7 +20,7 @@ export const config = {
   // Allegro wymaga, żeby każde zapytanie do API niosło nagłówek User-Agent
   // identyfikujący aplikację (regulamin REST API, pkt 3.4.c) — można nadpisać
   // własnym opisem/linkiem przez zmienną środowiskową.
-  allegroUserAgent: process.env.ALLEGRO_USER_AGENT ?? "Snajper/1.0 (prywatny snajper do licytacji, uzytek niekomercyjny)",
+  allegroUserAgent: process.env.ALLEGRO_USER_AGENT ?? "Wawrzyc_Snajper/1.0 (+https://github.com/wawrzyc/snajper)",
 };
 
 export function allegroAuthBase(sandbox: boolean): string {
