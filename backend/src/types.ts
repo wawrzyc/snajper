@@ -11,6 +11,7 @@ export interface Watch {
   offerId: string;
   url: string;
   title: string;
+  imageUrl: string | null;
   maxAmount: number;
   snipeOffsetSeconds: number;
   /** Koniec aukcji podany przez użytkownika (Allegro nie udostępnia go w API dla kupującego) */
@@ -28,6 +29,7 @@ export interface HistoryEntry {
   watchId: string;
   offerId: string;
   title: string;
+  imageUrl: string | null;
   status: WatchStatus;
   amount: number | null;
   message: string;

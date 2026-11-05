@@ -18,6 +18,7 @@ function addHistory(watch: Watch, status: Watch["status"], amount: number | null
       watchId: watch.id,
       offerId: watch.offerId,
       title: watch.title,
+      imageUrl: watch.imageUrl,
       status,
       amount,
       message,

@@ -5,14 +5,25 @@ import type { Watch } from "./types.js";
 export interface NewWatchInput {
   url?: unknown;
   title?: unknown;
+  imageUrl?: unknown;
   maxAmount?: unknown;
   snipeOffsetSeconds?: unknown;
   endTime?: unknown;
   knownPrice?: unknown;
 }
 
+function sanitizeImageUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function buildWatch(input: NewWatchInput): { watch: Watch } | { error: string } {
-  const { url, title, maxAmount, snipeOffsetSeconds, endTime, knownPrice } = input;
+  const { url, title, imageUrl, maxAmount, snipeOffsetSeconds, endTime, knownPrice } = input;
 
   const offerId = typeof url === "string" ? extractOfferId(url) : null;
   if (!offerId) {
@@ -48,6 +59,7 @@ export function buildWatch(input: NewWatchInput): { watch: Watch } | { error: st
       offerId,
       url: String(url),
       title: typeof title === "string" && title.trim() ? title.trim() : `Oferta ${offerId}`,
+      imageUrl: sanitizeImageUrl(imageUrl),
       maxAmount: max,
       snipeOffsetSeconds: offset,
       endTime: end.toISOString(),

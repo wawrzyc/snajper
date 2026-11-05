@@ -56,7 +56,7 @@ function buildBookmarklet(apiBase, token) {
     "(function(){",
     "try {",
     "var scripts = document.querySelectorAll('script[type=\"application/ld+json\"]');",
-    "var endTime = null, title = null, price = null;",
+    "var endTime = null, title = null, price = null, image = null;",
     "for (var i = 0; i < scripts.length; i++) {",
     "  try {",
     "    var data = JSON.parse(scripts[i].textContent);",
@@ -68,6 +68,10 @@ function buildBookmarklet(apiBase, token) {
     "        endTime = offers.priceValidUntil;",
     "        title = it.name || title;",
     "        price = offers.price || price;",
+    "        if (it.image) {",
+    "          var img = Array.isArray(it.image) ? it.image[0] : it.image;",
+    "          image = (img && img.url) || (typeof img === 'string' ? img : null) || image;",
+    "        }",
     "      }",
     "    }",
     "  } catch (e) {}",
@@ -81,7 +85,7 @@ function buildBookmarklet(apiBase, token) {
     "fetch('" + apiBase + "/api/bookmarklet/add', {",
     "  method: 'POST',",
     "  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer " + token + "' },",
-    "  body: JSON.stringify({ url: location.href, title: title, endTime: endTime, maxAmount: Number(maxAmount), knownPrice: price ? Number(price) : null })",
+    "  body: JSON.stringify({ url: location.href, title: title, imageUrl: image, endTime: endTime, maxAmount: Number(maxAmount), knownPrice: price ? Number(price) : null })",
     "}).then(function(r){ return r.json(); }).then(function(data){",
     "  alert(data.error ? ('Błąd: ' + data.error) : 'Dodano do Snajpera!');",
     "}).catch(function(err){ alert('Błąd połączenia: ' + err.message); });",
@@ -304,6 +308,12 @@ function updateCountdowns() {
 
 setInterval(updateCountdowns, 1000);
 
+function thumbHtml(imageUrl) {
+  return imageUrl
+    ? `<img class="thumb" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" />`
+    : `<div class="thumb thumb-empty">📦</div>`;
+}
+
 function renderWatches(watches) {
   const list = document.getElementById("watchList");
   list.innerHTML = "";
@@ -319,17 +329,22 @@ function renderWatches(watches) {
         ? `do końca: <span class="countdown" data-end="${w.endTime}"></span> (${fmtDate(w.endTime)})`
         : `koniec: ${fmtDate(w.endTime)}`;
     li.innerHTML = `
-      <div class="row">
-        <span class="title">${escapeHtml(w.title)}</span>
-        <span class="status status-${w.status}">${statusLabels[w.status] ?? w.status}</span>
-      </div>
-      <div class="meta">Max: ${w.maxAmount.toFixed(2)} zł · ${timeInfo} · strzał ${w.snipeOffsetSeconds}s przed</div>
-      ${w.currentPrice != null ? `<div class="meta">Ostatnia znana cena: ${w.currentPrice.toFixed(2)} zł</div>` : ""}
-      ${w.lastError ? `<div class="error">${escapeHtml(w.lastError)}</div>` : ""}
-      <div class="actions">
-        <a href="${w.url}" target="_blank" rel="noopener"><button type="button">Zobacz</button></a>
-        ${w.status === "scheduled" ? `<button type="button" data-id="${w.id}" data-action="edit">Edytuj</button>` : ""}
-        <button type="button" class="btn-danger" data-id="${w.id}" data-action="delete">Usuń</button>
+      <div class="list-row">
+        ${thumbHtml(w.imageUrl)}
+        <div class="list-body">
+          <div class="row">
+            <span class="title">${escapeHtml(w.title)}</span>
+            <span class="status status-${w.status}">${statusLabels[w.status] ?? w.status}</span>
+          </div>
+          <div class="meta">Max: ${w.maxAmount.toFixed(2)} zł · ${timeInfo} · strzał ${w.snipeOffsetSeconds}s przed</div>
+          ${w.currentPrice != null ? `<div class="meta">Ostatnia znana cena: ${w.currentPrice.toFixed(2)} zł</div>` : ""}
+          ${w.lastError ? `<div class="error">${escapeHtml(w.lastError)}</div>` : ""}
+          <div class="actions">
+            <a href="${w.url}" target="_blank" rel="noopener"><button type="button">Zobacz</button></a>
+            ${w.status === "scheduled" ? `<button type="button" data-id="${w.id}" data-action="edit">Edytuj</button>` : ""}
+            <button type="button" class="btn-danger" data-id="${w.id}" data-action="delete">Usuń</button>
+          </div>
+        </div>
       </div>
     `;
     list.appendChild(li);
@@ -370,14 +385,19 @@ function renderHistory(history) {
   for (const h of history.slice(0, 30)) {
     const li = document.createElement("li");
     li.innerHTML = `
-      <div class="row">
-        <span class="title">${escapeHtml(h.title)}</span>
-        <span class="status status-${h.status}">${statusLabels[h.status] ?? h.status}</span>
-      </div>
-      <div class="meta">${fmtDate(h.createdAt)} ${h.amount != null ? `· ${h.amount.toFixed(2)} zł` : ""}</div>
-      <div class="meta">${escapeHtml(h.message)}</div>
-      <div class="actions">
-        <button type="button" class="btn-danger" data-id="${h.id}" data-action="delete-history">Usuń</button>
+      <div class="list-row">
+        ${thumbHtml(h.imageUrl)}
+        <div class="list-body">
+          <div class="row">
+            <span class="title">${escapeHtml(h.title)}</span>
+            <span class="status status-${h.status}">${statusLabels[h.status] ?? h.status}</span>
+          </div>
+          <div class="meta">${fmtDate(h.createdAt)} ${h.amount != null ? `· ${h.amount.toFixed(2)} zł` : ""}</div>
+          <div class="meta">${escapeHtml(h.message)}</div>
+          <div class="actions">
+            <button type="button" class="btn-danger" data-id="${h.id}" data-action="delete-history">Usuń</button>
+          </div>
+        </div>
       </div>
     `;
     list.appendChild(li);
