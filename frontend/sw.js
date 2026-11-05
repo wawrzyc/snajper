@@ -1,4 +1,4 @@
-const CACHE = "snajper-v1";
+const CACHE = "snajper-v2";
 const SHELL = ["/", "/style.css", "/app.js", "/manifest.webmanifest", "/icons/icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -13,9 +13,18 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+// Sieć jako pierwsza — to narzędzie i tak wymaga połączenia z własnym
+// backendem, więc nie ma sensu ryzykować pokazywania nieaktualnej wersji.
+// Cache służy tylko jako zapasowa kopia, gdy sieć akurat nie odpowiada.
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET" || event.request.url.includes("/api/")) return;
   event.respondWith(
-    caches.match(event.request).then((cached) => cached ?? fetch(event.request)),
+    fetch(event.request)
+      .then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+        return res;
+      })
+      .catch(() => caches.match(event.request)),
   );
 });
