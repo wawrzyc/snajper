@@ -29,6 +29,29 @@ body {
   margin-bottom: 16px;
 }
 .topbar h1 { font-size: 1.4rem; margin: 0; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+
+.icon-btn {
+  width: auto;
+  background: transparent;
+  border: 1px solid #333;
+  color: var(--text);
+  margin-top: 0;
+  padding: 6px 10px;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.status-pill {
+  font-size: 0.78rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.status-pill-ok { background: #1f3b2a; color: var(--won); }
+.status-pill-bad { background: #3b2525; color: var(--error); }
+.status-pill-pending { background: #55502b; color: #ffe08a; }
+.status-pill-unknown { background: #262a33; color: var(--muted); }
 
 .card {
   background: var(--card);
@@ -91,6 +114,37 @@ label.checkbox-row input { width: auto; }
 .list .actions { margin-top: 8px; display: flex; gap: 8px; }
 .list .actions button { width: auto; margin-top: 0; padding: 6px 10px; font-size: 0.85rem; }
 .btn-danger { background: var(--error); color: #1a1a1a; }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 100;
+}
+.modal-overlay[hidden] { display: none; }
+.modal-card {
+  background: var(--card);
+  border-radius: 16px 16px 0 0;
+  padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+  width: 100%;
+  max-width: 520px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+@media (min-width: 560px) {
+  .modal-overlay { align-items: center; }
+  .modal-card { border-radius: 16px; }
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.modal-header h2 { margin: 0; }
 
 #bookmarkletLink {
   display: inline-block;

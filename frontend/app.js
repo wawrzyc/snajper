@@ -25,7 +25,6 @@ const mainView = document.getElementById("mainView");
 function showMain() {
   mainView.hidden = false;
   setupBookmarklet();
-  loadAllegroAppSettings();
   refreshAll();
 }
 
@@ -82,16 +81,35 @@ async function setupBookmarklet() {
 
 // --- Allegro connect ---
 
+function updateAllegroStatusPill(status) {
+  const pill = document.getElementById("allegroStatusPill");
+  if (status.connected) {
+    pill.textContent = "🟢 Połączono z Allegro";
+    pill.className = "status-pill status-pill-ok";
+  } else if (status.pending) {
+    pill.textContent = "🟡 Oczekiwanie na autoryzację";
+    pill.className = "status-pill status-pill-pending";
+  } else if (!status.configured) {
+    pill.textContent = "⚪ Nieskonfigurowane";
+    pill.className = "status-pill status-pill-unknown";
+  } else {
+    pill.textContent = "🔴 Niepołączone";
+    pill.className = "status-pill status-pill-bad";
+  }
+}
+
 async function refreshAllegroStatus() {
   const status = await api("/allegro/status");
   const banner = document.getElementById("allegroBanner");
   const bannerText = document.getElementById("allegroBannerText");
   const connectBtn = document.getElementById("connectAllegroBtn");
 
+  updateAllegroStatusPill(status);
+
   banner.hidden = status.connected;
   if (!status.connected) {
     if (!status.configured) {
-      bannerText.textContent = "Najpierw uzupełnij dane aplikacji Allegro w sekcji „Ustawienia Allegro” poniżej.";
+      bannerText.textContent = "Najpierw uzupełnij dane aplikacji Allegro w ustawieniach (⚙️ w prawym górnym rogu).";
       connectBtn.hidden = true;
     } else {
       bannerText.textContent = "Allegro nie jest połączone.";
@@ -111,6 +129,23 @@ async function refreshAllegroStatus() {
   }
   return status;
 }
+
+// --- Modal ustawień ---
+
+const settingsModal = document.getElementById("settingsModal");
+
+document.getElementById("openSettingsBtn").addEventListener("click", () => {
+  settingsModal.hidden = false;
+  loadAllegroAppSettings();
+});
+
+document.getElementById("closeSettingsBtn").addEventListener("click", () => {
+  settingsModal.hidden = true;
+});
+
+settingsModal.addEventListener("click", (e) => {
+  if (e.target === settingsModal) settingsModal.hidden = true;
+});
 
 async function loadAllegroAppSettings() {
   try {
@@ -136,7 +171,7 @@ document.getElementById("allegroAppForm").addEventListener("submit", async (e) =
   try {
     await api("/settings/allegro-app", { method: "POST", body: JSON.stringify(payload) });
     document.getElementById("allegroClientSecret").value = "";
-    statusEl.textContent = "Zapisano. Kliknij „Połącz z Allegro” powyżej.";
+    statusEl.textContent = "Zapisano. Zamknij to okno i kliknij „Połącz z Allegro”.";
     statusEl.hidden = false;
     refreshAllegroStatus();
   } catch (err) {
