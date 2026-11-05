@@ -72,6 +72,10 @@ input, button {
   color: var(--text);
   width: 100%;
 }
+input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 button {
   background: var(--accent);

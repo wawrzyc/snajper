@@ -221,6 +221,8 @@ function toDatetimeLocalValue(iso) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+const LOCKED_WHEN_EDITING = ["watchUrl", "watchTitle", "watchKnownPrice", "watchEndTime"];
+
 function startEditWatch(watch) {
   editingWatchId = watch.id;
   document.getElementById("watchUrl").value = watch.url;
@@ -232,11 +234,13 @@ function startEditWatch(watch) {
   document.getElementById("addWatchHeading").textContent = "Edytujesz licytację";
   document.getElementById("addWatchSubmitBtn").textContent = "Zapisz zmiany";
   document.getElementById("cancelEditBtn").hidden = false;
-  document.getElementById("watchUrl").scrollIntoView({ behavior: "smooth", block: "center" });
+  LOCKED_WHEN_EDITING.forEach((id) => { document.getElementById(id).disabled = true; });
+  document.getElementById("watchMaxAmount").scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function stopEditWatch() {
   editingWatchId = null;
+  LOCKED_WHEN_EDITING.forEach((id) => { document.getElementById(id).disabled = false; });
   document.getElementById("addWatchForm").reset();
   document.getElementById("watchOffset").value = 7;
   document.getElementById("addWatchHeading").textContent = "Nowa licytacja (ręcznie)";
