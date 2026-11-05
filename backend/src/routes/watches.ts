@@ -13,6 +13,27 @@ watchesRouter.get("/history", (_req, res) => {
   res.json(store.get().history.slice(0, 200));
 });
 
+watchesRouter.get("/history/stats", (_req, res) => {
+  const history = store.get().history;
+  const counts = { won: 0, lost: 0, error: 0, cancelled: 0 };
+  let totalSpent = 0;
+  for (const h of history) {
+    if (h.status === "won" || h.status === "lost" || h.status === "error" || h.status === "cancelled") {
+      counts[h.status] += 1;
+    }
+    if (h.status === "won" && h.amount != null) totalSpent += h.amount;
+  }
+  const resolved = counts.won + counts.lost + counts.error + counts.cancelled;
+  res.json({ ...counts, resolved, totalSpent });
+});
+
+watchesRouter.delete("/history/:id", (req, res) => {
+  store.update((draft) => {
+    draft.history = draft.history.filter((h) => h.id !== req.params.id);
+  });
+  res.json({ ok: true });
+});
+
 watchesRouter.post("/", (req, res) => {
   const result = buildWatch(req.body ?? {});
   if ("error" in result) {

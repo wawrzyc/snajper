@@ -349,6 +349,17 @@ function renderWatches(watches) {
   updateCountdowns();
 }
 
+function renderHistoryStats(stats) {
+  const el = document.getElementById("historyStats");
+  if (!stats || stats.resolved === 0) {
+    el.textContent = "Brak jeszcze zakończonych licytacji.";
+    return;
+  }
+  el.textContent =
+    `Wygrane: ${stats.won} z ${stats.resolved} · Przegrane: ${stats.lost} · ` +
+    `Błędy: ${stats.error} · Wydane łącznie: ${stats.totalSpent.toFixed(2)} zł`;
+}
+
 function renderHistory(history) {
   const list = document.getElementById("historyList");
   list.innerHTML = "";
@@ -365,9 +376,18 @@ function renderHistory(history) {
       </div>
       <div class="meta">${fmtDate(h.createdAt)} ${h.amount != null ? `· ${h.amount.toFixed(2)} zł` : ""}</div>
       <div class="meta">${escapeHtml(h.message)}</div>
+      <div class="actions">
+        <button type="button" class="btn-danger" data-id="${h.id}" data-action="delete-history">Usuń</button>
+      </div>
     `;
     list.appendChild(li);
   }
+  list.querySelectorAll('[data-action="delete-history"]').forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      await api(`/watches/history/${btn.dataset.id}`, { method: "DELETE" });
+      refreshHistory();
+    });
+  });
 }
 
 async function refreshWatches() {
@@ -376,8 +396,12 @@ async function refreshWatches() {
 }
 
 async function refreshHistory() {
-  const history = await api("/watches/history");
+  const [history, stats] = await Promise.all([
+    api("/watches/history"),
+    api("/watches/history/stats"),
+  ]);
   renderHistory(history);
+  renderHistoryStats(stats);
 }
 
 function escapeHtml(str) {
