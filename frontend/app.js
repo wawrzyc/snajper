@@ -22,9 +22,30 @@ async function api(path, options = {}) {
 
 const mainView = document.getElementById("mainView");
 
+/**
+ * Obsługa natywnego "Udostępnij" z telefonu (Android/Chrome) — patrz
+ * share_target w manifest.webmanifest. Przeglądarka dorzuca udostępniony
+ * link jako parametr URL, z którego wyciągamy adres i wsadzamy do formularza.
+ */
+function handleSharedLink() {
+  const params = new URLSearchParams(location.search);
+  const candidate = params.get("url") || params.get("text") || "";
+  const match = candidate.match(/https?:\/\/(?:www\.)?allegro\.[a-z.]+\/\S+/i);
+  if (match) {
+    const urlInput = document.getElementById("watchUrl");
+    urlInput.value = match[0];
+    urlInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    document.getElementById("watchMaxAmount").focus();
+  }
+  if (params.has("url") || params.has("text") || params.has("title")) {
+    history.replaceState(null, "", location.pathname);
+  }
+}
+
 function showMain() {
   mainView.hidden = false;
   setupBookmarklet();
+  handleSharedLink();
   refreshAll();
 }
 
